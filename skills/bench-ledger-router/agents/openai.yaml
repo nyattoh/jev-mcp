@@ -1,0 +1,6 @@
+interface:
+  display_name: "Provider / Model / Effort Router"
+  short_description: "Select provider/model/effort and run independent tasks together"
+  default_prompt: "Use $model-effort-router to select available providers, models and effort settings, run independent tasks concurrently, and validate the combined result."
+policy:
+  allow_implicit_invocation: true
