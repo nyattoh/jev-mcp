@@ -118,9 +118,11 @@ def rank(candidates: list[dict]) -> list[dict]:
         if bench is None or bench.get("best_score") is None:
             return (0, 0.0, 0.0)          # unknown evidence ranks after known
         score = float(bench["best_score"])
-        value = score / float(cost) if cost and cost > 0 else score
         measured_bonus = 1.0 if bench.get("best_source") == "measured" else 0.0
-        return (1, value + measured_bonus, score)
+        if not cost or cost <= 0:
+            # Unknown price: score/cost is undefined, so rank after every priced candidate.
+            return (1, 0, score + measured_bonus, score)
+        return (1, 1, score / float(cost) + measured_bonus, score)
     candidates.sort(key=efficiency, reverse=True)
     for index, c in enumerate(candidates, start=1):
         c["rank"] = index

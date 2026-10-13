@@ -163,7 +163,8 @@ independent verification tasks, run this protocol on top of the ranking:
    model from a **different vendor** than the implement model (use the
    `vendor` field). Reason: an independent family catches what the authoring
    family systematically misses. If no cross-vendor candidate exists, say so
-   and fall back to the next-best same-vendor candidate.
+   and fall back to the next-best same-vendor candidate. Mark that verify task
+   `"no_cross_vendor_candidate": true` in the task-graph state so `task_gate.py` G3 accepts it.
 
 2. **Hand-over contract.** Before dispatching a verify task, the implement
    task's output must be written to a file the verifier can read (diff,
@@ -182,6 +183,7 @@ independent verification tasks, run this protocol on top of the ranking:
    python "<this skill>/scripts/record.py" --model <model id> \
        --bench <benchmark or task-domain name> --score <0-100> \
        --effort <effort used> --cost-per-task <USD if known> \
+       --vendor <vendor, required the first time a model is recorded> \
        --notes "<one-line what was done>"
    ```
 

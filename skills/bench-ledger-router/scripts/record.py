@@ -46,8 +46,13 @@ def main() -> int:
 
     conn = sqlite3.connect(args.ledger)
     try:
+        known = conn.execute("SELECT 1 FROM models WHERE slug = ?", (args.model,)).fetchone()
+        if known is None and not args.vendor:
+            # An "unknown" vendor would make every new model look like one family to G3.
+            print(json.dumps({"ok": False, "error": "vendor_required_for_new_model"}))
+            return 2
         conn.execute("INSERT OR IGNORE INTO models (slug, vendor) VALUES (?, ?)",
-                     (args.model, args.vendor or "unknown"))
+                     (args.model, args.vendor))
         conn.execute("INSERT OR IGNORE INTO benchmarks (name, domain) VALUES (?, ?)",
                      (args.bench, args.domain))
         conn.execute(

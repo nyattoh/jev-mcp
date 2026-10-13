@@ -14,10 +14,10 @@ import re
 import sys
 
 RULES = [
-    ("verify",     r"テスト|検証|verify|review|audit|check|監査|レビュー|テストして"),
-    ("research",   r"調査|リサーチ|research|compare|比較|evaluate|評価"),
-    ("docs",       r"文書|ドキュメント|docs|documentation|README|guide|ガイド|記事"),
-    ("implement",  r"実装|作成|実行|build|implement|create|fix|修正|追加|add|refactor|リファクタ"),
+    ("verify",     r"テスト|検証|\bverify\b|\breview\b|\baudit\b|\bcheck\b|監査|レビュー|テストして"),
+    ("research",   r"調査|リサーチ|\bresearch\b|\bcompare\b|比較|\bevaluate\b|評価"),
+    ("docs",       r"文書|ドキュメント|\bdocs\b|\bdocumentation\b|\bREADME\b|\bguide\b|ガイド|記事"),
+    ("implement",  r"実装|作成|実行|\bbuild\b|\bimplement\b|\bcreate\b|\bfix\b|修正|追加|\badd\b|\brefactor\b|リファクタ"),
 ]
 DOMAIN_BY_KIND = {
     "implement": ("coding-implement", ["coding-implement"]),

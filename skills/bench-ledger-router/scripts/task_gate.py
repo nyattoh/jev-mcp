@@ -21,7 +21,9 @@ Rules enforced (exit 3 on violation):
   G1  every implement task with status=done has a non-null artifact
   G2  every implement task has a verify task with verdict in {pass}
       (fail/needs_review/missing -> not done)
-  G3  implement.vendor != verify.vendor for every pair (systematic diversity)
+  G3  implement.vendor != verify.vendor for every pair (systematic diversity),
+      unless the verify task sets "no_cross_vendor_candidate": true (the documented
+      same-vendor fallback when the live catalogue has no other vendor)
   G4  sum(cost_usd) <= budget_usd when budget_usd is present
 Exit 0 = graph may be reported as complete.
 """
@@ -72,7 +74,7 @@ def main() -> int:
     for v in verifies:
         target = v.get("verifies")
         if target in vendor_of and vendor_of.get(target) and v.get("vendor"):
-            if vendor_of[target] == v["vendor"]:
+            if vendor_of[target] == v["vendor"] and v.get("no_cross_vendor_candidate") is not True:
                 violations.append(
                     f"G3: verify task {v.get('id')} ({v['vendor']}) same vendor as implement {target}")
 
