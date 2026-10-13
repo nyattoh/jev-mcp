@@ -2,7 +2,23 @@
 
 T3 Code needs no changes. Each provider loads MCP servers from its own configuration, and T3 adds its `t3-code` server next to them.
 
-Use a stable checkout for the server path, for example `D:\develop\works\t3code\extensions\jev-mcp\src\main.ts`. Set `TYPESAFE_API_KEY` and `T3CODE_HOME` as user environment variables so every launch path sees them.
+Use a stable checkout for the server path, for example `D:\develop\works\jev-mcp\src\main.ts`. Set `TYPESAFE_API_KEY` and `T3CODE_HOME` as user environment variables so every launch path sees them.
+
+## Environment variables
+
+| Variable | Used by | Purpose |
+| --- | --- | --- |
+| `TYPESAFE_API_KEY` | jev-mcp | Jev API key. Without it `jev_route` returns `missing-key`. |
+| `T3CODE_HOME` | jev-mcp, T3 Code | The store goes to `%T3CODE_HOME%\jev\jev.sqlite`. Unset means `~/.t3`. |
+
+Set them for your Windows user so every launcher, shortcut and auto-update relaunch inherits them:
+
+```powershell
+[Environment]::SetEnvironmentVariable('TYPESAFE_API_KEY', '<key>', 'User')
+[Environment]::SetEnvironmentVariable('T3CODE_HOME', 'D:\path\to\t3-home', 'User')
+```
+
+Processes that were already running keep their old environment. Restart T3 Code afterwards.
 
 ## Codex
 
@@ -11,7 +27,7 @@ T3 starts Codex with `CODEX_HOME` set to the provider instance's home path when 
 ```toml
 [mcp_servers.jev]
 command = "node"
-args = ['D:\develop\works\t3code\extensions\jev-mcp\src\main.ts']
+args = ['D:\develop\works\jev-mcp\src\main.ts']
 env_vars = ["TYPESAFE_API_KEY", "T3CODE_HOME"]
 ```
 
@@ -39,7 +55,7 @@ env = { PYTHONPATH = 'D:\path\to\model-effort-router\src' }
 T3's Claude adapter does not set `settingSources`. The Claude Agent SDK (0.3.276) loads every filesystem settings source when that option is omitted, the same as the CLI. T3 adds `t3-code` with `setMcpServers`, which per the SDK only manages servers added that way and leaves servers from settings in place. So a user-scope server is loaded in T3's Claude threads:
 
 ```sh
-claude mcp add --scope user jev -- node D:\develop\works\t3code\extensions\jev-mcp\src\main.ts
+claude mcp add --scope user jev -- node D:\develop\works\jev-mcp\src\main.ts
 ```
 
 If the Claude provider instance sets `CLAUDE_CONFIG_DIR`, run the command with the same `CLAUDE_CONFIG_DIR` so the entry lands in that directory. Check with `claude mcp list`.
@@ -69,12 +85,12 @@ Workaround:
    ```toml
    [mcp_servers.jev]
    command = "node"
-   args = ["/mnt/d/develop/works/t3code-jev-detached/extensions/jev-mcp/src/main.ts", "--db", "/home/<you>/.t3/jev/jev.sqlite"]
+   args = ["/mnt/d/develop/works/jev-mcp/src/main.ts", "--db", "/home/<you>/.t3/jev/jev.sqlite"]
    env_vars = ["TYPESAFE_API_KEY"]
    ```
 
    ```sh
-   claude mcp add --scope user jev -- node /mnt/d/develop/works/t3code-jev-detached/extensions/jev-mcp/src/main.ts --db ~/.t3/jev/jev.sqlite
+   claude mcp add --scope user jev -- node /mnt/d/develop/works/jev-mcp/src/main.ts --db ~/.t3/jev/jev.sqlite
    ```
 
    A store on `/mnt/d` works, but SQLite locking across the 9P mount is slower and less reliable than on the distro's own filesystem, so keep the store under the distro home.

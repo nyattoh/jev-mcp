@@ -2,7 +2,7 @@
   "name": "jev-mcp",
   "version": "0.1.0",
   "private": true,
-  "description": "Jev model routing as a standalone MCP server for T3 Code. Lives outside T3's workspace and database.",
+  "description": "Jev model routing as a standalone MCP server for T3 Code. Keeps its own store outside T3's database.",
   "bin": {
     "jev-mcp": "./src/main.ts"
   },
