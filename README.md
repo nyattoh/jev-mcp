@@ -1,5 +1,7 @@
 # jev-mcp
 
+English | [日本語](README.ja.md)
+
 Jev model routing for T3 Code as a standalone MCP server. It lives outside T3 Code's repository, server, and database, so official T3 Code updates cannot conflict with it. History up to the split comes from `extensions/jev-mcp` in nyattoh/t3code (`jev-detached/base`).
 
 ## What it does
@@ -54,7 +56,8 @@ It refuses a history it does not recognize, a non-empty WAL, and a database anot
 
 ```sh
 git clone https://github.com/nyattoh/jev-mcp.git D:\develop\works\jev-mcp
-```n
+```
+
 Then register it with each provider as described in [docs/configure.md](docs/configure.md).
 
 ## Configuration
