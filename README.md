@@ -26,6 +26,7 @@ Node 24 or newer (runs TypeScript directly, uses `node:sqlite`). No npm dependen
 
 ```sh
 node --test test/*.test.ts
+python -m unittest discover -s skills/bench-ledger-router/tests
 ```
 
 ## Moving a fork database to official T3 Code
