@@ -1,5 +1,6 @@
 import * as NodeAssert from "node:assert/strict";
 import * as NodeChildProcess from "node:child_process";
+import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
@@ -7,7 +8,14 @@ import * as NodeSqlite from "node:sqlite";
 import * as NodeTest from "node:test";
 import * as NodeURL from "node:url";
 
-import { httpJevCall, JevError, route, type JevCall } from "../src/route.ts";
+import {
+  httpJevCall,
+  JevError,
+  parseRouteInput,
+  requestDigest,
+  route,
+  type JevCall,
+} from "../src/route.ts";
 import { handle } from "../src/server.ts";
 import { defaultDbPath, JevStore } from "../src/store.ts";
 
@@ -45,12 +53,12 @@ const tempDb = () =>
 NodeTest.test("routes to the candidate Jev chose and stores it", async () => {
   const store = new JevStore(tempDb());
   const { call, calls } = countingCall(
-    answer("c0", { c0: 0.7, c1: 0.2, insufficient_evidence: 0.1 }),
+    answer("c0", { c0: 0.8, c1: 0.1, insufficient_evidence: 0.1 }),
   );
   const result = await route(input, { store, call });
   NodeAssert.equal(result.model, "gpt-5.5");
   NodeAssert.equal(result.reasoningEffort, "low");
-  NodeAssert.equal(result.confidence, 0.7);
+  NodeAssert.equal(result.confidence, 0.8);
   NodeAssert.equal(result.replayed, false);
   NodeAssert.equal(calls.length, 1);
   NodeAssert.deepEqual(Object.keys((calls[0] as any).questions.route.criteria), [
@@ -80,7 +88,7 @@ NodeTest.test("rejects a reused requestId with different input", async () => {
   const store = new JevStore(":memory:");
   await route(input, {
     store,
-    call: countingCall(answer("c0", { c0: 0.6, c1: 0.3, insufficient_evidence: 0.1 })).call,
+    call: countingCall(answer("c0", { c0: 0.8, c1: 0.1, insufficient_evidence: 0.1 })).call,
   });
   await NodeAssert.rejects(
     route({ ...input, policy: "Highest quality." }, { store, call: countingCall(null).call }),
@@ -260,7 +268,7 @@ NodeTest.test(
   async () => {
     const path = tempDb();
     const { call, calls } = slowCall(
-      answer("c0", { c0: 0.7, c1: 0.2, insufficient_evidence: 0.1 }),
+      answer("c0", { c0: 0.8, c1: 0.1, insufficient_evidence: 0.1 }),
     );
     const [a, b] = await Promise.all([
       route(input, { store: new JevStore(path), call }),
@@ -320,4 +328,174 @@ NodeTest.test("a late release does not drop a claim another caller took over", (
   NodeAssert.equal(store.claim("req-x", "d", 200, 10_000).state, "pending");
   store.release("req-x", second.token!);
   NodeAssert.equal(store.claim("req-x", "d", 300, 10_000).state, "claimed");
+});
+
+const isCode = (code: string) => (e: unknown) => e instanceof JevError && e.code === code;
+
+const three = {
+  ...input,
+  requestId: "req-3",
+  candidates: [
+    { model: "gpt-5.5", reasoningEffort: "low" },
+    { model: "gpt-5.5", reasoningEffort: "medium" },
+    { model: "gpt-5.5", reasoningEffort: "high" },
+  ],
+};
+
+NodeTest.test("rejects a choice below 1.5x a uniform pick and stores nothing", async () => {
+  // Two candidates: the floor is max(0.5, 1.5 / 2) = 0.75.
+  const store = new JevStore(":memory:");
+  await NodeAssert.rejects(
+    route(input, {
+      store,
+      call: countingCall(answer("c0", { c0: 0.7, c1: 0.2, insufficient_evidence: 0.1 })).call,
+    }),
+    isCode("low-confidence"),
+  );
+  NodeAssert.equal(store.get("req-1")?.decision, null);
+  const { call, calls } = countingCall(
+    answer("c1", { c0: 0.1, c1: 0.8, insufficient_evidence: 0.1 }),
+  );
+  NodeAssert.equal((await route(input, { store, call })).reasoningEffort, "high");
+  NodeAssert.equal(calls.length, 1);
+});
+
+NodeTest.test("rejects a choice that barely leads the runner-up", async () => {
+  // Three candidates: confidence floor 0.5 passes, but the lead of 0.1 is under 0.15.
+  await NodeAssert.rejects(
+    route(three, {
+      store: new JevStore(":memory:"),
+      call: countingCall(
+        answer("c0", { c0: 0.5, c1: 0.4, c2: 0.05, insufficient_evidence: 0.05 }),
+      ).call,
+    }),
+    isCode("low-confidence"),
+  );
+  const ok = await route(three, {
+    store: new JevStore(":memory:"),
+    call: countingCall(answer("c2", { c0: 0.3, c1: 0.1, c2: 0.55, insufficient_evidence: 0.05 }))
+      .call,
+  });
+  NodeAssert.equal(ok.reasoningEffort, "high");
+});
+
+NodeTest.test("lets callers raise the floors but never lower them", async () => {
+  const { call, calls } = countingCall(null);
+  for (const bad of [
+    { ...three, minConfidence: 0.3 },
+    { ...three, minMargin: 0.05 },
+    { ...three, minConfidence: 1.5 },
+    { ...three, minMargin: "0.5" },
+    { ...three, securitySensitive: "yes" },
+  ]) {
+    await NodeAssert.rejects(
+      route(bad, { store: new JevStore(":memory:"), call }),
+      isCode("invalid-input"),
+    );
+  }
+  NodeAssert.equal(calls.length, 0);
+  const strong = answer("c2", { c0: 0.1, c1: 0.1, c2: 0.75, insufficient_evidence: 0.05 });
+  await NodeAssert.rejects(
+    route(
+      { ...three, minConfidence: 0.8 },
+      { store: new JevStore(":memory:"), call: countingCall(strong).call },
+    ),
+    isCode("low-confidence"),
+  );
+  await NodeAssert.rejects(
+    route(
+      { ...three, minMargin: 0.7 },
+      { store: new JevStore(":memory:"), call: countingCall(strong).call },
+    ),
+    isCode("low-confidence"),
+  );
+});
+
+NodeTest.test("security-sensitive requests offer Jev only high, xhigh or max effort", async () => {
+  const { call, calls } = countingCall(
+    answer("c1", { c0: 0.1, c1: 0.85, insufficient_evidence: 0.05 }),
+  );
+  const result = await route(
+    {
+      ...input,
+      requestId: "req-sec",
+      securitySensitive: true,
+      candidates: [
+        { model: "gpt-5.4-mini", reasoningEffort: "low" },
+        { model: "gpt-5.5", reasoningEffort: "high" },
+        { model: "gpt-5.4-mini" },
+        { model: "gpt-5.5", reasoningEffort: "XHigh" },
+        { model: "gpt-5.5", reasoningEffort: "medium" },
+      ],
+    },
+    { store: new JevStore(":memory:"), call },
+  );
+  const criteria = (calls[0] as any).questions.route.criteria;
+  NodeAssert.deepEqual(Object.keys(criteria), ["c0", "c1", "insufficient_evidence"]);
+  NodeAssert.deepEqual(JSON.parse(criteria.c0), { model: "gpt-5.5", reasoningEffort: "high" });
+  NodeAssert.equal(result.reasoningEffort, "XHigh");
+  NodeAssert.match(result.reason, /security-sensitive/);
+});
+
+NodeTest.test("security-sensitive requests without a high-effort candidate fail without calling Jev", async () => {
+  const { call, calls } = countingCall(null);
+  await NodeAssert.rejects(
+    route(
+      {
+        ...input,
+        securitySensitive: true,
+        candidates: [{ model: "gpt-5.5", reasoningEffort: "medium" }, { model: "gpt-5.4-mini" }],
+      },
+      { store: new JevStore(":memory:"), call },
+    ),
+    (e: unknown) =>
+      e instanceof JevError && e.code === "no-secure-candidate" && /strongest model/.test(e.message),
+  );
+  NodeAssert.equal(calls.length, 0);
+});
+
+NodeTest.test("default floors keep the original request digest; new options change it", () => {
+  const legacy = NodeCrypto.createHash("sha256")
+    .update(
+      JSON.stringify({
+        taskSummary: input.taskSummary,
+        policy: input.policy,
+        candidates: input.candidates,
+      }),
+    )
+    .digest("hex");
+  NodeAssert.equal(requestDigest(parseRouteInput(input)), legacy);
+  NodeAssert.notEqual(
+    requestDigest(parseRouteInput({ ...input, securitySensitive: true })),
+    legacy,
+  );
+  NodeAssert.notEqual(requestDigest(parseRouteInput({ ...input, minConfidence: 0.9 })), legacy);
+});
+
+NodeTest.test("a stored decision below the floor is not replayed", async () => {
+  const store = new JevStore(":memory:");
+  const parsed = parseRouteInput({ ...input, requestId: "req-old" });
+  store.claim("req-old", requestDigest(parsed), Date.now(), 1_000);
+  store.complete("req-old", {
+    decisionId: "d-old",
+    model: "gpt-5.5",
+    reasoningEffort: "low",
+    reason: "stored before the floor",
+    confidence: 0.28,
+  });
+  const { call, calls } = countingCall(null);
+  await NodeAssert.rejects(
+    route({ ...input, requestId: "req-old" }, { store, call }),
+    isCode("low-confidence"),
+  );
+  NodeAssert.equal(calls.length, 0);
+});
+
+NodeTest.test("the tool schema exposes securitySensitive and says when it is required", async () => {
+  const deps = { store: new JevStore(":memory:"), call: countingCall(null).call };
+  const list: any = await handle({ jsonrpc: "2.0", id: 3, method: "tools/list" }, deps);
+  const tool = list.result.tools[0];
+  NodeAssert.equal(tool.inputSchema.properties.securitySensitive.type, "boolean");
+  for (const word of ["security", "auth", "secrets", "deploy", "release", "merge", "push", "migration", "prod"])
+    NodeAssert.match(tool.description, new RegExp(word));
 });
