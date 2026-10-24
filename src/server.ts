@@ -10,7 +10,10 @@ export const ROUTE_TOOL = {
   title: "Choose a model with Jev",
   description:
     "Ask Jev to pick one model and reasoning effort from the candidates you list, for the task and policy given. " +
-    "Advisory: it does not switch the current thread's model. Reusing a requestId with the same input returns the stored decision.",
+    "Advisory: it does not switch the current thread's model. Reusing a requestId with the same input returns the stored decision. " +
+    "Tasks touching security, auth, secrets, deploy, release, merge, push, migration or prod MUST set securitySensitive: true; " +
+    "then only high, xhigh or max effort candidates are considered. " +
+    "On a low-confidence, insufficient-evidence or no-secure-candidate error, choose manually and take the stronger option.",
   inputSchema: {
     type: "object",
     additionalProperties: false,
@@ -33,6 +36,25 @@ export const ROUTE_TOOL = {
           required: ["model"],
           properties: { model: { type: "string" }, reasoningEffort: { type: "string" } },
         },
+      },
+      securitySensitive: {
+        type: "boolean",
+        description:
+          "Required true for security, auth, secrets, deploy, release, merge, push, migration or prod tasks. " +
+          "Keeps only candidates with reasoningEffort high, xhigh or max.",
+      },
+      minConfidence: {
+        type: "number",
+        minimum: 0.5,
+        maximum: 1,
+        description:
+          "Raise the confidence floor. Default 0.5; the floor is also at least 1.5 / candidates (capped at 0.9).",
+      },
+      minMargin: {
+        type: "number",
+        minimum: 0.15,
+        maximum: 1,
+        description: "Raise the required lead over the runner-up. Default 0.15.",
       },
     },
   },

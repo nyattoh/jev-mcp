@@ -10,6 +10,12 @@ One tool, `jev_route`. Given a task summary, a policy, and the model and reasoni
 
 Each `requestId` is recorded before Jev is called. Repeating a request with the same id and input returns the stored decision without calling Jev. Reusing an id with different input fails with `duplicate-request`.
 
+### Confidence and security floors
+
+Jev's choice is rejected with `low-confidence` when its confidence is below `max(0.5, 1.5 / candidates)` (the second term capped at 0.9) or when it leads the runner-up by less than 0.15. Callers may raise these floors with `minConfidence` (0.5-1) and `minMargin` (0.15-1), never lower them. Stored decisions below the floor are not replayed.
+
+Tasks touching security, auth, secrets, deploy, release, merge, push, migration or prod must set `securitySensitive: true`. Jev then sees only candidates with `reasoningEffort` `high`, `xhigh` or `max`; with none, the call fails with `no-secure-candidate`. On any of these errors the agent chooses manually and takes the stronger option.
+
 ## Storage
 
 `%T3CODE_HOME%\jev\jev.sqlite` (`~/.t3/jev/jev.sqlite` when `T3CODE_HOME` is unset), or `--db <path>`. T3's `statev2.sqlite` is never opened.

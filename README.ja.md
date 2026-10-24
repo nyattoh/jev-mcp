@@ -10,6 +10,12 @@ T3 Code 用の Jev モデルルーティングを、独立した MCP サーバ�
 
 各 `requestId` は Jev を呼ぶ前に記録されます。同じ id と同じ入力で再度呼ぶと、Jev を呼ばずに保存済みの決定を返します。同じ id を異なる入力で使うと `duplicate-request` で失敗します。
 
+### 確信度とセキュリティの下限
+
+Jev の選択は、確信度が `max(0.5, 1.5 / 候補数)`（第 2 項の上限は 0.9）未満のとき、または次点との差が 0.15 未満のとき `low-confidence` で拒否されます。呼び出し側は `minConfidence`（0.5〜1）と `minMargin`（0.15〜1）で下限を上げられますが、下げることはできません。下限未満の保存済み決定は再生されません。
+
+セキュリティ・認証・シークレット・デプロイ・リリース・マージ・プッシュ・マイグレーション・本番に関わるタスクは `securitySensitive: true` を指定する必要があります。このとき Jev には `reasoningEffort` が `high`・`xhigh`・`max` の候補だけが渡され、該当がなければ `no-secure-candidate` で失敗します。これらのエラーが出たら、エージェントは手動で強い方を選びます。
+
 ## 保存先
 
 `%T3CODE_HOME%\jev\jev.sqlite`（`T3CODE_HOME` 未設定時は `~/.t3/jev/jev.sqlite`）、または `--db <path>`。T3 の `statev2.sqlite` は開きません。
